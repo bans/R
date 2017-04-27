@@ -1,0 +1,54 @@
+#install.packages("psych")
+library(psych)
+# The package psych contains the data set bfi which is used here.
+mydata <- bfi[complete.cases(bfi),]
+str(mydata)
+m <- cor(mydata[,1:25])
+library(corrplot)
+corrplot(m, method = "ellipse")
+# Remove age, education, and gender from the data.
+subset <- mydata[,1:25]
+str(subset)
+#Set the seed for the simulations to determine number of components.
+set.seed(1234)
+#  This program does a principal components analysis, creates 100 data sets of the same size as cereals_clean
+#  and produces a scree plot of both the simulated data sets and bif.
+fa.parallel(subset, fa = "pc", n.iter = 100,show.legend = FALSE, main = "Scree plot with parallel analysis")
+# Draw a line at eigenvalue = 1.0.
+abline(h = 1)
+#
+# Run principal components on the correlation matrix with with 5 components.
+# Obtain both the unrotated and rotated loadings matrices.
+pca.unrotated <- principal(subset, nfactors = 5,rotate = "none")
+pca.rotated <- principal(subset, nfactors = 5, rotate = "varimax",score = TRUE)
+# Print the eigenvalues;
+print(pca.unrotated$values)
+# Print the loadings for the unrotated solution.
+pca.unrotated$loadings
+# Print the loadings for the rotated solution.
+pca.rotated$loadings
+#loads<- pca.rotated$loadings[,1:5]
+#loads
+# Output the loadings to a csv file.
+# Set the working directory
+setwd("C:/R/Rdata")
+write.csv(loads, "./loadings5.csv")
+# 
+# Obtain the component scores on 5 components.
+head(pca.rotated$scores)
+# Combine the scores with the original data set.
+mydata.scores <- cbind(mydata,pca.rotated$scores)
+head(mydata.scores)
+# Investigate the relationships between the factor scores
+# and gender, education, and age.
+reg1 <- lm(RC1 ~ as.factor(gender) + as.factor(education) + age,data = mydata.scores)
+summary(reg1)
+reg2 <- lm(RC2 ~ as.factor(gender) + as.factor(education) + age,data = mydata.scores)
+summary(reg2)
+reg3 <- lm(RC3 ~ as.factor(gender) + as.factor(education) + age,data = mydata.scores)
+summary(reg3)
+reg4 <- lm(RC4 ~ as.factor(gender) + as.factor(education) + age,data = mydata.scores)
+summary(reg4)
+reg5 <- lm(RC5 ~ as.factor(gender) + as.factor(education) + age,data = mydata.scores)
+summary(reg5)
+
