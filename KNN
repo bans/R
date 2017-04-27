@@ -1,3 +1,4 @@
+-------------------- Digit Recognizer using KNN--------------
 digit <- read.csv("digits.csv", header = TRUE)
 str(digit)
 
@@ -35,3 +36,70 @@ install.packages("e1071", dependencies = TRUE)
 library("crossval")
 library("e1071")
 classifier<-naiveBayes(label ~. , data=TrainData) 
+
+-------------BreastCancerkNN-----------------
+
+#1
+cancer <- read.csv("./breastcancer.csv")
+head(cancer,10)
+nrow(cancer)
+table(cancer$Class)
+
+#2
+# Change missing operator from ? to NA
+cancer$Bare.Nuclei[cancer$Bare.Nuclei == "?"] <- NA
+sapply(cancer, function(x) sum(is.na(x))) 
+cancer.2 <- subset(cancer, !is.na(cancer$Bare.Nuclei))
+
+#3
+str(cancer.2)
+cancer.2$Class <- as.factor(cancer.2$Class)
+levels(cancer.2$Class) <- list("benign" = "2", "malignant" = "4")
+cancer.2$Bare.Nuclei <- as.integer(cancer.2$Bare.Nuclei)
+
+#remove case
+cancer.2 <- cancer.2[,(2:11)]
+str(cancer.2)
+
+#normalize the data - to avoid coercion
+normalize <- function(x) {
+  num <- x - min(x)
+  denom <- max(x) - min(x)
+  return (num/denom)
+}
+cancer.norm <- as.data.frame(lapply(cancer.2[1:9], normalize))
+
+#4
+set.seed(111)
+sub <- sample(nrow(cancer.norm), floor(nrow(cancer.norm)*.75))
+TrainData <- cancer.norm[sub,]
+TestData <- cancer.norm[-sub,]
+nrow(TrainData)
+str(TrainData)
+nrow(TestData)
+str(TestData)
+
+#separate Target variables
+TrainTarget <- cancer.2[sub,10]
+TestTarget <- cancer.2[-sub,10]
+
+#5
+library(class)
+knn_fit <- knn(train = TrainData, test = TestData, 
+               cl = TrainTarget, k = 5)
+
+#6
+library(caret)
+cm <- confusionMatrix(data=knn_fit, reference=TestTarget)
+
+#7
+
+Train.with.target <- cbind(TrainData,TrainTarget)
+str(Train.with.target)
+logit_fit <- glm(TrainTarget ~., data = Train.with.target, family=binomial(link="logit"))
+summary(logit_fit)
+
+Test.with.target <- cbind(TestData,TestTarget)
+logit.pred.test <- ifelse(predict(logit_fit, Test.with.target ) > 0.5, "malignant", "benign")
+logit.pred.test <- as.factor(logit.pred.test)
+confusionMatrix(data = logit.pred.test, reference = Test.with.target$TestTarget)  #check accuracy
