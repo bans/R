@@ -1,0 +1,51 @@
+#2
+med.tests <- read.csv("./MedicalTests.csv", header = TRUE)
+
+#a
+str(med.tests)
+
+#b
+row.names(med.tests) <- med.tests$Name
+med.tests <- med.tests[,-1]
+med.tests
+
+#3
+install.packages("proxy")
+library(proxy) 
+dist.matrix <- dist(med.tests, method="jaccard",diag=TRUE,upper=TRUE)
+dist.matrix
+
+#4,5 - hclust : Hierarchical cluster analysis on a set of dissimilarities and methods for analyzing it
+clus.med.tests1 <- hclust(dist.matrix,method="ward.D")
+plot(clus.med.tests1,hang=-1)
+
+clus.med.tests2 <- hclust(dist.matrix,method="average")
+plot(clus.med.tests2,hang=-1)
+
+clus.med.tests3 <- hclust(dist.matrix,method="complete")
+plot(clus.med.tests3,hang=-1)
+
+#6
+install.packages("NbClust")
+library(NbClust)
+
+nc <- NbClust(data=med.tests, min.nc=2, max.nc=5,method="ward.D")
+barplot(table(nc$Best.nc[1,]),xlab="Number of Clusters",
+        ylab="Number of Criteria",main="Number of clusters")
+
+help("NbClust")
+
+#7
+par = (mfcol=c(1,1))
+
+clusters <- cutree(clus.med.tests1,k=3)
+table(clusters)
+cluster.descriptions <- aggregate(med.tests,by=list(cluster=clusters),mean)
+#aggregate : Splits the data into subsets, computes summary statistics for each, 
+#and returns the result in a convenient form.
+help("aggregate")
+
+#8
+#par(opar)
+plot(clus.med.tests1,hang=-1,cex=.8,main="3 Cluster Solution")
+rect.hclust(clus.med.tests1,k=3)
