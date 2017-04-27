@@ -1,0 +1,139 @@
+#1
+titanic <- read.csv("titanicdata.csv", header = TRUE)
+str(titanic)
+
+# missing values
+sapply(titanic,function(x) sum(is.na(x))) 
+#unique values
+sapply(titanic, function(x) length(unique(x)))
+
+titanic$age[is.na(titanic$age)] <- mean(titanic$age,na.rm=T)
+titanic$fare[is.na(titanic$fare)] <- mean(titanic$fare,na.rm=T)
+titanic <- titanic[!is.na(titanic$embarked),]
+drop.vars <- names(titanic) %in% c("name", "ticket", "cabin","home.dest") 
+titanic.2 <- titanic[!drop.vars]
+sapply(titanic.2,function(x) sum(is.na(x)))
+contrasts(titanic.2$sex)
+contrasts(titanic.2$embarked)
+
+str(titanic.2)
+
+set.seed(1234)
+sub <- sample(nrow(titanic.2), floor(nrow(titanic.2)*.8))
+TrainData <- titanic.2[sub,]
+TestData <- titanic.2[-sub,]
+str(TrainData) # Check the data structures
+str(TestData)
+
+#2 Bagging
+
+install.packages("adabag",dependencies=TRUE)
+library(adabag)
+library(rpart)
+set.seed(1234)
+TrainData$survived <- as.factor(TrainData$survived)
+titanic.bagging <- bagging(survived~.,data = TrainData, mfinal = 50)
+
+#a
+titanic.pred.bagging <- predict.bagging(titanic.bagging,newdata = TrainData,type = "class")
+confusionMatrix(titanic.pred.bagging$class,TrainData$survived)
+
+#b
+library(ROCR)
+titanic.pred.bagging.prob <- predict.bagging(titanic.bagging, newdata = TrainData)
+pred.roc.bagging <- prediction(titanic.pred.bagging$prob[,2],TrainData$survived)
+roc.bagging <- performance(pred.roc.bagging, "tpr", "fpr")
+plot(roc.bagging)
+abline(0, 1, lty = 2)
+
+#3 Decision Tree
+fit.tree <- rpart(survived ~ .,data = TrainData,method = "class")
+summary(fit.tree)
+str(fit.tree)
+
+#a
+library(caret)
+pred.train <- predict(fit.tree, newdata = TrainData, type="class")
+confusionMatrix(pred.train, TrainData$survived)
+
+#b
+pred.roc.tree <- predict(fit.tree, newdata = TestData, type = "prob") [,2]
+prediction.roc.tree <- prediction(pred.roc.tree,TestData$survived)
+roc.bagging <- performance(prediction.roc.tree, "tpr", "fpr")
+plot(roc.bagging)
+abline(0, 1, lty = 2)
+
+#4 Boosted Tree Model
+set.seed(2)
+titanic.boost <- boosting(survived ~ .,data = TrainData, mfinal = 50,
+                        coeflearn = "Freund", boos = FALSE, 
+                        control = rpart.control(maxdepth = 3))
+
+#a
+titanic.boost.pred <- predict(titanic.boost, newdata=TrainData)
+confusionMatrix(titanic.boost.pred$class,TrainData$survived)
+
+#b
+pred.boost.prob <- predict(titanic.boost, newdata=TrainData)
+str(pred.boost.prob)
+prediction.boost.roc <- prediction(pred.boost.prob$prob[,2],TrainData$survived)
+roc.boost <- performance(prediction.boost.roc, "tpr", "fpr")
+plot(roc.boost)
+
+#5 Logistic
+logit.model <- glm(survived ~ ., family = binomial(link = 'logit'), 
+                   data = TrainData)
+
+#a
+pred.train.logit <- predict(logit.model, TrainData, type = "response")
+pr.train.logit <- ifelse(pred.train.logit > 0.5, "Yes", "No")
+str(pr.train.logit)
+#confusionMatrix(pr.train.logit,TrainData$survived)
+
+#b
+pred.train.logit.prob <- predict(logit.model, newdata = TrainData,type = "response")
+pred.roc.logit <- prediction(pred.train.logit.prob,TrainData$survived)
+roc.logit <- performance(pred.roc.logit, measure = "tpr", x.measure = "fpr")
+plot(roc.logit)
+abline(0, 1, lty = 2)
+
+#6 Random Forest
+install.packages("randomForest",dependencies=TRUE)
+library(randomForest)
+set.seed(11)
+rf.titanic <- randomForest(survived ~ .,  data = TrainData, mtry = 5,replace = TRUE,
+                         ntree = 5000, importance = TRUE)
+str(rf.titanic)
+
+#a
+#predicted is a field - created in random forest
+confusionMatrix(rf.titanic$predicted,TrainData$survived)
+
+#b
+pred.prob.rf <- predict(rf.titanic,data = TrainData,type = "prob")
+pred.roc.rf <- prediction(pred.prob.rf[,2],TrainData$survived)
+roc.rf <- performance(pred.roc.rf, measure = "tpr", x.measure = "fpr")
+plot(roc.rf)
+abline(0, 1, lty = 2)
+
+#7
+
+plot(roc.bagging,col = "red", lwd = 2, xlim = c(0,1), ylim = c(0,1))
+par(new = T) # This allows plotting on the same chart.
+plot(roc.boost,col = "green", lwd = 2, xlim = c(0,1), ylim = c(0,1))
+par(new = T) # This allows plotting on the same chart.
+plot(roc.logit,col = "orange", lwd = 2, xlim = c(0,1), ylim = c(0,1))
+par(new = T) # This allows plotting on the same chart.
+plot(roc.rf,col = "grey", lwd = 2, xlim = c(0,1), ylim = c(0,1))
+# Add a baseline model to the ROC curve.
+abline(a = 0, b = 1,col = "black")
+# Add horizontal and vertical grid lines.
+
+abline(h = c(0,0.1, 0.2, 0.3,0.4, 0.5, 0.6,0.7,0.8,0.9,1.0), 
+       col = "grey80", lwd = .1)
+abline(v = c(0,0.1, 0.2, 0.3,0.4, 0.5, 0.6,0.7,0.8,0.9,1.0), 
+       col = "grey80", lwd = .1) 
+# Add a legend to the ROC curve.
+legend("bottomright", col = c("red","blue","green","orange","grey"), lty = 1,lwd = 2,
+       legend = c("Bagging","Decision tree","Boosting","Logit","Random forest"), bg = "white")
+par(new = F)  # This allows plotting on the same chart.
