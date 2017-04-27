@@ -1,0 +1,111 @@
+-------------Decision Trees--------------
+
+#1
+churn <- read.csv("churn.csv", header=TRUE)
+str(churn)
+
+#2
+churn1 <- churn[,c(3:17)]
+str(churn1)
+
+#3
+set.seed(1234)
+sub <- sample(nrow(churn1), floor(nrow(churn1)*0.8))
+TrainData <- churn1[sub,]
+TestData <- churn1[-sub,]
+
+str(TrainData)
+str(TestData)
+
+#4
+
+#a
+install.packages("rpart", dependencies=TRUE)
+library(rpart)
+fit.tree <- rpart(Churn ~. , data=TrainData, method = "class")
+#b
+summary(fit.tree)
+#c 
+plotcp(fit.tree) #visual rep of crossvalidation results
+help(plotcp)
+#d
+fit.tree$variable.importance
+barplot(rev(fit.tree$variable.importance),col="black")
+printcp(fit.tree)
+
+#5
+plot(fit.tree,uniform = TRUE, main = "Classification Tree for Churn",
+     margin = .2)
+text(fit.tree, use.n = TRUE, all = TRUE, cex = .8)
+pdf(file="./fittree.pdf",height=11,width=8) #pdf starts the graphics device driver for producing PDF graphics
+plot(fit.tree, uniform = TRUE, main = "Classification Tree for Churn",
+     margin = .2)
+text(fit.tree, use.n = TRUE, all = TRUE, cex = .6)
+dev.off() #saves plots
+
+#6
+install.packages("caret", dependencies = TRUE)
+library(caret)
+predict.test <- predict(fit.tree, newdata = TestData, type = "class")
+cm <- confusionMatrix(predict.test, TestData$Churn) #predicted vs actual target variable
+cm
+
+#7
+library(ROCR)
+pred.roc <- predict(fit.tree, newdata = TestData, type ="prob") [,2]
+prediction.roc <- prediction(pred.roc, TestData$Churn) #transforms the input data in a standard format
+roc.tree <- performance(prediction.roc, "tpr", "fpr") #measure of performance tpr and fpr
+plot(roc.tree)
+abline(0, 1, lty = 2)
+
+#8
+logit.model <- glm(Churn ~. , family = binomial(link = 'logit'), 
+                   data = TrainData)
+sumry.model <- summary(logit.model)
+sumry.model
+pred.test.logit <- predict(logit.model, newdata = TestData, type="response")
+pr.test.logit <- ifelse(pred.test.logit > 0.5, "Yes", "No")
+confusionMatrix(pr.test.logit, TestData$Churn)
+
+pred.logit <- predict(logit.model, newdata = TestData, type="response")
+prediction.logit <- prediction(pred.logit, TestData$Churn)
+roc.logit <- performance(prediction.logit, "tpr", "fpr")
+plot(roc.logit)
+abline(0, 1, lty = 2)
+
+#9
+library("e1071")
+classifier <- naiveBayes(TrainData[,c(1:14)], TrainData[,15]) 
+classifier
+
+pred.Bayes <- predict(classifier, TestData[,-15])
+head(pred.Bayes)
+length(TestData[,15])
+confusionMatrix(pred.Bayes, TestData[,15])
+
+pred.Bayes.raw <- predict(classifier, TestData[,-15],type="raw")
+str(pred.Bayes.raw)
+pred.test.Bayes <- prediction(pred.Bayes.raw[,2],TestData$Churn)
+roc.Bayes <- performance(pred.test.Bayes, measure = "tpr", x.measure = "fpr")
+plot(roc.Bayes)
+abline(0, 1, lty = 2)
+
+#10
+plot(roc.tree,main = 'ROC Curve', col = "blue", lwd = 2, xlim = c(0,1), ylim = c(0,1))
+par(new = T) # This allows plotting on the same chart.
+
+plot(roc.logit,col = "red", lwd = 2, xlim = c(0,1), ylim = c(0,1))
+par(new = T) # This allows plotting on the same chart.
+
+plot(roc.Bayes,col = "green")
+
+abline(a = 0, b = 1,col = "black")
+abline(h = c(0,0.1, 0.2, 0.3,0.4, 0.5, 0.6,0.7,0.8,0.9,1.0), 
+       col = "grey80", lwd = .1)
+abline(v = c(0,0.1, 0.2, 0.3,0.4, 0.5, 0.6,0.7,0.8,0.9,1.0), 
+       col = "grey80", lwd = .1) 
+legend("bottomright", col = c("blue", "red","green"), lty = 1,lwd = 2,
+       legend = c("Decision Tree", "Logit","Naive Bayes"), bg = "white")
+par(new = F)  # This allows plotting on the same chart.
+
+
