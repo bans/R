@@ -1,0 +1,93 @@
+#1
+
+#a
+r_df<-read.csv("Wholesalecustomers.csv")
+dim(r_df)
+str(r_df)
+sapply(r_df, function(x) sum(is.na(x)))
+
+opar <- par(no.readonly=TRUE)
+
+#b
+par(mfrow=c(2,3))
+apply(r_df[,c(-1,-2)],2,boxplot)
+
+quant<-function(x){quantile(x,probs=0.95)}
+out1<-sapply(r_df[,c(-1,-2)],quant)
+out1
+
+#c
+r_df$Fresh<-ifelse(r_df$Fresh>=out1[1],out1[1],r_df$Fresh)
+r_df$Milk<-ifelse(r_df$Milk>=out1[2],out1[2],r_df$Milk)
+r_df$Grocery<-ifelse(r_df$Grocery>=out1[3],out1[3],r_df$Grocery)
+r_df$Frozen<-ifelse(r_df$Frozen>=out1[4],out1[4],r_df$Frozen)
+r_df$Detergents_Paper<-ifelse(r_df$Detergents_Paper>=out1[5],out1[5],r_df$Detergents_Paper)
+r_df$Delicatessen<-ifelse(r_df$Delicatessen>=out1[6],out1[6],r_df$Delicatessen)
+dim(r_df)
+
+#Checking outliers after removal
+apply(r_df[,c(-1,-2)],2,boxplot)
+#Restore the original settings.
+par(opar)
+par(mfrow=c(1,1))
+
+#scaling dataset except for variables variables 1 and 2
+r_df_scaled<-as.matrix(scale(r_df[,c(-1,-2)]))
+head(r_df_scaled)
+
+#2
+library(NbClust)
+set.seed(1234)
+nc1<-NbClust(r_df,min.nc=2,max.nc=15,method="kmeans")
+
+#Kmeans Clustering
+set.seed(11)
+km<-kmeans(r_df_scaled,centers=3,nstart=17,iter.max=50000, algorithm = "Forgy",trace = T)
+
+#checking results
+summary(km)
+km$centers
+km$size
+
+Cluster<-cbind(r_df,Membership=km$cluster)
+aggregate(Cluster[,3:8],list(Cluster[,9]),mean)
+
+max_all <- max(km$centers)
+max_all
+min_all <- min(km$centers)
+min_all
+yrange <-range(km$centers)
+yrange
+par(mfrow=c(1,1))
+
+barplot(t(km$centers), beside=TRUE,
+        ylab="value",col=c("red","blue","green","gray",
+                           "palevioletred","orange"),
+        names.arg=c("Cluster 1","Cluster 2","Cluster 3"),
+        cex.names=1,ylim=c(-1,3))
+
+legend("topright",border="black",xpd=TRUE,
+       legend=c("Fresh","Milk","Groceries",
+                "Frozen foods","Detergent and paper goods","Deli"),
+       col=c("red","blue","green","gray","palevioletred","orange"),
+       lty = 1,lwd=15,cex=.8)
+
+par(mfrow=c(1,1))
+
+plot(km$centers[1,],type="o",xaxt="n",col="red",
+     main="Cluster mean values",
+     ylab="Mean of standardized values",
+     xlab="Variable"
+)
+
+axis(1, at=1:6, lab=c("Fresh", "Milk", "Groceries", "Frozen","Detergent","Deli"),cex.axis=1)
+axis(side=2,at=c(-1,0,2),labels=c("-1","0","2"))
+lines(km$centers[2,],type="o",col="blue")
+lines(km$centers[3,],type="o",col="green")
+legend("topleft",border="black",xpd=TRUE,legend=c("clus1","clus2","cusl3"),col = c("red","blue","green"),cex=1,bty="n",
+       pch = 1,lty = 1)
+abline(h=0,col="60black")
+
+str(Cluster) 
+table(Cluster$Channel,Cluster$Membership)
+table(Cluster$Region,Cluster$Membership)
