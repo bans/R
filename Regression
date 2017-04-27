@@ -1,0 +1,274 @@
+#Exercise 1
+
+toy <- read.csv("ToyotaCorolla.csv", header = TRUE)
+str(toy)
+
+toy[1]
+
+cars_small <- toy[,c("Price", "Age_08_04", "KM", "HP")]
+cars_small
+
+install.packages("reshape", dependencies = TRUE)
+library(reshape)
+
+cars_small <- rename(cars_small,c("Age_08_04" = "Age"))
+str(cars_small)
+
+set.seed(123)
+
+ncars.train <- round(nrow(cars_small)*0.8,0)
+ncars.train
+
+ncars.test <- round(nrow(cars_small)*0.2, 0)
+ncars.test
+
+sub <- sample(nrow(cars_small),ncars.train)
+
+cars.train <- cars_small[sub,]
+cars.test <- cars_small[-sub,]
+
+dim(cars.test)
+dim(cars.train)
+
+#Exercise 2
+summary(cars.test)
+summary(cars.train)
+
+attach(cars.train)
+par(mfrow=c(1,4))
+boxplot(cars.train$Price, main="Boxplot of Price", horizontal = TRUE)
+boxplot(cars.train$Age, main="Boxplot of Age", horizontal = TRUE)
+boxplot(cars.train$KM, main="Boxplot of KM", horizontal = TRUE)
+boxplot(cars.train$HP, main="Boxplot of HP", horizontal = TRUE)
+
+attach(cars.train)
+par(mfcol=c(1,4))
+hist(Price)
+hist(Age)
+hist(KM)
+hist(HP)
+
+pairs(~Price+Age+KM+HP,data=cars.train, 
+      main="Simple Scatterplot Matrix")
+
+
+#Exercise 3
+getwd()
+
+str(cars.train)
+model=lm(cars.train$Price ~ cars.train$Age + cars.train$KM + cars.train$HP)
+sy <- summary(model)
+sy
+sy$r.squared
+sy$fstatistic
+sy$coefficients
+
+res <- model$residuals
+res
+
+pr <- predict(model)
+head(pr)
+str(pr)
+
+par(mfrow=c(1,1))
+
+plot(x=pr, y=cars.train$Price, main="Actual vs Predicted Price")
+
+plot(x=res, y=pr, main="Residuals vs Predicted Price")
+lines(lowess(y=cars.train$Price,x=res, f=2/3))
+
+#Exercise 4
+stdmodel <- rstandard(model)
+boxplot(stdmodel~cars.train$Price, data=cars.train, xlab="STD Residuals", ylab="Actual Price")
+boxplot(stdmodel,xlab="STD Residuals", ylab="Actual Price")
+
+abres <- abs(res)>2
+abres
+
+cars.train2 <- cars.train[abres,]
+str(cars.train2)
+model2=lm(cars.train2$Price ~ cars.train2$Age + cars.train2$KM + cars.train2$HP)
+sy2<-summary(model2)
+sy2
+
+res2 <- sy2$residuals
+res2
+
+
+pr2<- predict(model2)
+
+plot(x=res2, y=pr2,main="Residuals vs Predicted Price")
+lines(lowess(y=cars.train$Price,x=res, f=2/3))
+
+install.packages("car")
+library(car)
+
+avPlot(model2, cars.train2$KM, layout=NULL)
+avPlot(model2,cars.train2$HP,layout=NULL)
+avPlot(model2,cars.train2$Age,layout=NULL)
+
+#Exercise 5
+
+model3 <- lm(Price ~ Age + KM + HP + I(Age^2), data= cars.train)
+sy3 <- summary(model3)
+sy3
+
+sy3$r.squared
+sy3$fstatistic
+
+pr3 <- predict(model)
+
+res3 <- model3$residuals
+
+plot(x=pr3, y=cars.train$Price, main="Actual vs Predicted Price", xlab="Predicted Price", ylab="Actual Price")
+
+plot(x=res3, y=pr3, main="Residuals vs Predicted Price")
+lines(lowess(y=cars.train$Price,x=res3, f=2/3))
+
+
+#Regression Part II
+
+#Exercise1
+
+test.predict <- predict(model3, cars.test)
+str(test.predict)
+
+test.results <- cbind(cars.test,test.predict)
+str(test.results)
+head(test.results)
+
+train.rsq<- summary(model3)$r.squared
+train.rsq
+test.rsq <- (cor(test.results$Price, test.results$test.predict)^2) 
+test.rsq
+
+Train_residuals <- residuals(model3)
+Test_residuals <- test.results$Price - test.results$test.predict
+
+MAE_Train <- mean(abs(Train_residuals))
+MAE_Test  <- mean(abs(Test_residuals))
+
+MAPE_Train <- mean(abs(Train_residuals/cars.train2$Price))
+MAPE_Test <- mean(abs(Test_residuals/test.results$Price))
+
+RMSE_Train <- (sqrt(mean(Train_residuals^2)))
+RMSE_Test<- (sqrt(mean(Test_residuals^2)))
+Summary_results <- matrix(c(train.rsq,test.rsq,
+                            MAE_Train,MAE_Test,
+                            MAPE_Train,MAPE_Test,
+                            RMSE_Train,RMSE_Test), byrow=TRUE,ncol=2, nrow=4)
+colnames(Summary_results) <-c("Train","Test")
+rownames(Summary_results) <- c("R-square","MAE", "MAPE", "RMSE")
+round(Summary_results,digit=3)
+
+#Exercise 2
+
+sales.assets <- read.csv("SalesAndAssets.csv", header=TRUE)
+sales.assets
+str(sales.assets)
+
+reg2 <- lm(Profit ~ Sales + Assets, data=sales.assets)
+summary(reg2)
+
+corrm <- cor(sales.assets)
+corrm
+
+library(car)
+vif(reg2)
+
+#Exercise 3
+
+cardata <- read.csv("ToyotaCorolla.csv", header=TRUE)
+head(cardata,5)
+
+cardata$Mfg_Year <- NULL
+car2 <- cardata[,- c(1,2)]
+str(car2)
+
+set.seed(12345)
+
+subs <- sample(nrow(car2), floor(nrow(car2)*.75))
+TrainData <- car2[subs,]
+TestData <- car2[-subs,]
+nrow(TrainData)
+nrow(TestData)
+
+min.model <- lm(Price ~ 1, data = TrainData)
+min.model
+full.model <-formula(lm(Price ~ ., data = TrainData))
+full.model
+fwd.model <- step(min.model,direction="forward", scope=full.model)
+summary(fwd.model)
+
+AIC(fwd.model)
+fwd.model$anova
+str(fwd.model)
+
+fwd.model$coefficients
+fwd.model$call
+
+plot(x=predict(fwd.model),y=residuals(fwd.model))
+std.res <-rstandard(fwd.model)
+boxplot(std.res)
+outliers <- TrainData[abs(std.res)>3,]
+nrow(outliers)
+
+plot(x=predict(fwd.model),y=TrainData$Price)
+
+PredictedPrice <- predict(fwd.model,TestData)
+str(PredictedPrice)
+
+test <- data.frame(PredictedPrice)
+str(test)
+
+test2 <- cbind(TestData,test)
+str(test2)
+
+TrainRsquare <- (cor(predict(fwd.model),TrainData$Price))^2
+TestRsquare<-(cor(test2$PredictedPrice,test2$Price))^2
+
+Train_residuals <- residuals(fwd.model)
+Test_residuals <- test2$Price - test2$PredictedPrice
+
+ME_Train <- mean(Train_residuals)
+ME_Test  <- mean(Test_residuals)
+
+MAE_Train <- mean(abs(Train_residuals))
+MAE_Test  <- mean(abs(Test_residuals))
+
+MAPE_Train <- mean(abs(Train_residuals/TrainData$Price))
+MAPE_Test <- mean(abs(Test_residuals/test2$Price))
+
+RMSE_Train <- (sqrt(mean(Train_residuals^2)))
+RMSE_Test<- (sqrt(mean(Test_residuals^2)))
+
+Summary_results <- matrix(c(TrainRsquare,TestRsquare,
+                            ME_Train,ME_Test,
+                            MAE_Train,MAE_Test,
+                            MAPE_Train,MAPE_Test,
+                            RMSE_Train,RMSE_Test), byrow=TRUE,ncol=2, nrow=5)
+colnames(Summary_results) <-c("Train","Test")
+rownames(Summary_results) <- c("R-square","Mean error","MAE", "MAPE", "RMSE")
+round(Summary_results,digit=3)
+
+library(boot)
+set.seed(12345)
+rsq <- function(formula, data, indices) {
+  d <- data[indices,] # allows boot to select sample 
+  fit <- lm(formula, data=d)
+  stor.r2[i]=summary(fwd.model)$r.square
+  return(summary(fwd.mode)$r.square)
+  
+} 
+
+nr <- nrow(TestData)
+stor.r2 <- rep(0,100)
+for (i in 1:100) {
+  idx=sample(1:nr, nr, replace=TRUE)
+  newdata <- TestData[idx,]
+  test.predict <- predict(fwd.model,newdata)
+  test.results <- cbind(newdata,test.predict)
+  stor.r2[i]<-(cor(test.results$test.predict,test.results$Price))^2
+}
+stor.r2  
+hist(stor.r2,breaks=12)
