@@ -1,0 +1,179 @@
+#Feb 21st
+#1
+titanic <- read.csv("titanicdata.csv", header=TRUE)
+str(titanic)
+head(titanic)
+
+sapply(titanic,function (x) sum(is.na(x)))
+sapply(titanic, function(x) length(unique(x)))
+
+titanic$age[is.na(titanic$age)] <- mean(titanic$age, na.rm = T)
+titanic$fare[is.na(titanic$fare)] <- mean(titanic$fare, na.rm=T)
+titanic <- titanic[!is.na(titanic$embarked),]
+drop.vars <- names(titanic) %in% c("name", "ticket", "cabin","home.dest") 
+titanic.2 <- titanic[!drop.vars]
+
+sapply(titanic.2,function(x) sum(is.na(x)))
+
+head(titanic.2)
+contrasts(titanic.2$sex) 
+contrasts(titanic.2$embarked)
+#Contrasts are needed when you fit linear models with factors 
+#(i.e. categorical variables) as explanatory variables. 
+
+titanic.2$pclass2 = 0
+titanic.2$pclass1 = 0
+titanic.2$pclass1 <- ifelse(titanic.2$pclass == 1, 1,0)
+titanic.2$pclass2 <- ifelse(titanic.2$pclass == 3, 0,1)
+head(titanic.2)
+
+#2
+set.seed(111)
+sub<- sample(nrow(titanic.2), floor(nrow(titanic.2)*.75))
+TrainData <- titanic.2[sub,]
+TestData <- titanic.2[-sub,]
+nrow(TrainData)
+nrow(TestData)
+
+#3
+model1 <- glm(survived ~ sex+age+sibsp + parch + fare + pclass1 +pclass2 
+              + embarked, family=binomial(link='logit'), data=TrainData)
+sum.model1<- summary(model1)
+sum.model1
+
+#4
+model1.prsq <- (sum.model1$null.deviance - sum.model1$deviance)/sum.model1$null.deviance
+model1.prsq
+
+#5
+model.chisq <- model1$null.deviance - model1$deviance
+degrees.of.freedom <- model1$df.null - model1$df.residual
+pvalue <- with(model1, pchisq(null.deviance - deviance, 
+                              df.null - df.residual, lower.tail = FALSE))
+
+cat("Chi-square for test of whole logit model =" ,model.chisq,"\n",
+    "Degrees of freedom = " ,degrees.of.freedom,"\n","p-value = ",pvalue)
+
+#6
+#a 
+Train.confusion <- ifelse(predict(model1, TrainData, 
+                                  type = 'response') > 0.5, 1, 0)
+confusion.matrix.Train <- table( TrainData$survived,Train.confusion)
+dimnames(confusion.matrix.Train) <-setNames(dimnames(confusion.matrix.Train),
+                                            c("Actual", "Predicted"))
+confusion.matrix.Train
+
+#b
+truepos <- TrainData$survived == 1 & Train.confusion == 1
+TrainSensitivity <- sum(truepos)/sum(TrainData$survived == 1 )
+TrainSensitivity
+
+#c
+trueneg <- TrainData$survived == 0 & Train.confusion == 0
+TrainSpecificity <- sum(trueneg)/sum(TrainData$survived == 0 )
+TrainSpecificity
+
+#d
+TrainAccuracy <- sum((truepos + trueneg)/nrow(TrainData))
+TrainAccuracy
+
+#7
+#a
+Test.confusion <- ifelse(predict(model1, TestData, 
+                                 type = 'response') > 0.5, 1, 0)
+confusion.matrix.Test <- table(TestData$survived,Test.confusion)
+dimnames(confusion.matrix.Test) <- setNames(dimnames(confusion.matrix.Test),c("Actual", "Predicted"))
+confusion.matrix.Test
+
+#b
+truepos <- TestData$survived == 1 & Test.confusion == 1
+TestSensitivity <- sum(truepos)/sum(TestData$survived == 1)
+TestSensitivity
+
+#c
+trueneg <- TestData$survived == 0 & Test.confusion == 0
+TestSpecificity <- sum(trueneg)/sum(TestData$survived == 0)
+TestSpecificity
+
+#d
+TestAccuracy <- sum((truepos + trueneg)/nrow(TestData))
+TestAccuracy
+
+#8
+Summary_results <- matrix(c(TrainSensitivity,TestSensitivity,
+                            TrainSpecificity,TestSpecificity,
+                            TrainAccuracy,TestAccuracy), 
+                          byrow = TRUE, ncol = 2, nrow = 3)
+colnames(Summary_results) <- c("Train","Test")
+rownames(Summary_results) <- c("Sensitivity  ","Specificity  ","Accuracy  ")
+
+round(Summary_results, digits = 3)
+
+#9
+install.packages("ROCR", dependencies=TRUE)
+library(ROCR)
+
+predTrain <- predict(model1,TrainData,type=c("response"))
+pr1<- prediction(predTrain,TrainData$survived)
+prf1 <- performance(pr1, measure = "tpr", x.measure = "fpr") #Measures the quality of a prediction w.r.t. some performance measure
+
+predTest <- predict(model1, TestData,type = c("response"))
+pr2 <- prediction(predTest,TestData$survived)
+prf2 <- performance(pr2, measure = "tpr", x.measure = "fpr")
+
+plot(prf1,main = 'ROC Curve for Training and Test Data', 
+     col = "blue", lwd = 2, xlim = c(0,1), ylim = c(0,1))
+par(new = T) #allows plotting on the same chart
+
+plot(prf2,col = "red", lwd = 2, xlim = c(0,1), ylim = c(0,1))
+abline(a = 0, b = 1,col = "black")
+abline(h = c(0,0.1, 0.2, 0.3,0.4, 0.5, 0.6,0.7,0.8,0.9,1.0), 
+       col = "grey80", lwd = .1)
+abline(v = c(0,0.1, 0.2, 0.3,0.4, 0.5, 0.6,0.7,0.8,0.9,1.0), 
+       col = "grey80", lwd = .1) 
+
+legend("bottomright", col = c("blue", "red"), lty = 1,lwd = 2,
+       legend = c("Training", "Test"), bg = "white")
+par(new = F) #allows plotting on the same chart
+
+#10
+auc1 <- performance(pr1, measure="auc")
+aucTrain <- auc1@y.values[[1]]
+
+auc2 <- performance(pr2, measure = "auc")
+aucTest <- auc2@y.values[[1]]
+
+cat("Area under ROC curves:","\n",round(aucTrain,3), " for TrainData",
+    "\n",round(aucTest,3), " for TestData")
+
+#11
+perf1.lift <- performance(pr1,"lift","rpp")
+plot(perf1.lift, main = "Lift curves for training and testing data",
+     col = "blue",xlim = c(0,1), ylim = c(1,3),
+     xlab = "Proportion of cases")
+par(new = T)
+
+perf2.lift <- performance(pr2,"lift","rpp")
+plot(perf2.lift, col = "red",xlim = c(0,1), ylim = c(1,3),xlab = "")
+abline(h = 1,col = "grey")
+abline(v = c(0,0.1, 0.2, 0.3,0.4, 0.5, 0.6,0.7,0.8,0.9,1.0), 
+       col = "grey80", lwd = .1) 
+legend("topright", col = c("blue", "red"),lty = 1,lwd = 2,
+       legend =  c("Training", "Test") )
+par(new = F)
+
+#12
+prfgainsTraining <- performance(pr1, measure = "tpr", x.measure = "rpp")
+plot(prfgainsTraining, main = "Gains Chart on Training & Test Data",
+     col = "blue",lwd = 2, xlim = c(0,1), ylim = c(0,1))
+segments(0,0,1,1, col = "green",lwd = 2)
+propor <- sum(TrainData[,1])/nrow(TrainData)
+propor
+segments(0,0,propor,1, col = "black", lwd = 2)
+segments(propor,1,1,1, col = "black", lwd = 2)
+legend("bottomright", col = c("black", "blue","red","green"), lty = 1,lwd = 2,
+       legend = c("Ideal", "Training Data","Testing Data","Baseline") )
+par(new = T)
+prfgainsTest <- performance(pr2, measure = "tpr", x.measure = "rpp")
+plot(prfgainsTest, col = "red",xlim = c(0,1), ylim = c(0,1),xlab = "")
+par(new = F) 
