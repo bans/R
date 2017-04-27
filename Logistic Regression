@@ -1,4 +1,3 @@
-#Feb 21st
 #1
 titanic <- read.csv("titanicdata.csv", header=TRUE)
 str(titanic)
